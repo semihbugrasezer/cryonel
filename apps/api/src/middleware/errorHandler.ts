@@ -2,6 +2,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
 import { logger } from '../lib/logger';
+import { recordError } from '../lib/metrics';
 
 // Custom error classes
 export class AppError extends Error {
@@ -57,6 +58,7 @@ export function errorHandler(
     _next: NextFunction
 ): void {
     const requestId = req.headers['x-request-id'] || 'unknown';
+    const service = 'cryonel-api';
 
     // Log error with request context
     logger.error({
@@ -73,6 +75,7 @@ export function errorHandler(
 
     // Handle different error types
     if (error instanceof ZodError) {
+        recordError('VALIDATION_ERROR', service, 'low');
         res.status(400).json({
             error: {
                 code: 'VALIDATION_ERROR',
@@ -85,6 +88,11 @@ export function errorHandler(
     }
 
     if (error instanceof AppError) {
+        let severity: "low" | "medium" | "high" = 'medium';
+        if (error instanceof NotFoundError) {
+            severity = 'low';
+        }
+        recordError(error.code, service, severity);
         res.status(error.statusCode).json({
             error: {
                 code: error.code,
@@ -97,6 +105,7 @@ export function errorHandler(
 
     // Handle database errors
     if ((error as any).code === '23505') { // Unique constraint violation
+        recordError('DUPLICATE_ENTRY', service, 'medium');
         res.status(409).json({
             error: {
                 code: 'DUPLICATE_ENTRY',
@@ -108,6 +117,7 @@ export function errorHandler(
     }
 
     if ((error as any).code === '23503') { // Foreign key violation
+        recordError('INVALID_REFERENCE', service, 'medium');
         res.status(400).json({
             error: {
                 code: 'INVALID_REFERENCE',
@@ -120,6 +130,7 @@ export function errorHandler(
 
     // Handle JWT errors
     if (error.name === 'JsonWebTokenError') {
+        recordError('INVALID_TOKEN', service, 'medium');
         res.status(401).json({
             error: {
                 code: 'INVALID_TOKEN',
@@ -131,6 +142,7 @@ export function errorHandler(
     }
 
     if (error.name === 'TokenExpiredError') {
+        recordError('TOKEN_EXPIRED', service, 'medium');
         res.status(401).json({
             error: {
                 code: 'TOKEN_EXPIRED',
@@ -142,6 +154,7 @@ export function errorHandler(
     }
 
     // Default error response
+    recordError('INTERNAL_SERVER_ERROR', service, 'high');
     res.status(500).json({
         error: {
             code: 'INTERNAL_SERVER_ERROR',
