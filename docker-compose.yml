@@ -1,0 +1,154 @@
+services:
+  # API Service
+  api:
+    image: ${API_IMAGE:-cryonel-api:latest}
+    build: 
+      context: ./apps/api
+      dockerfile: Dockerfile
+    env_file: ./.env
+    depends_on: 
+      - db
+      - redis
+    ports: 
+      - "8080:8080"
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - cryonel-network
+
+  # Web Frontend
+  web:
+    image: ${WEB_IMAGE:-cryonel-web:latest}
+    build: 
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        - BUILDKIT_INLINE_CACHE=1
+    env_file: ./.env
+    depends_on: 
+      - api
+    ports: 
+      - "3000:80"
+    restart: unless-stopped
+    networks:
+      - cryonel-network
+
+  # Arbitrage Worker
+  worker-arb:
+    build: 
+      context: ./apps/workers/arb
+      dockerfile: Dockerfile
+    env_file: ./.env
+    depends_on: 
+      - api
+      - redis
+    environment:
+      - REGION=eu
+      - CEX_PREFERENCE=EU_FIRST
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - cryonel-network
+
+  # Copy Trading Master Worker
+  worker-copy-master:
+    build: 
+      context: ./apps/workers/copy-master
+      dockerfile: Dockerfile
+    env_file: ./.env
+    depends_on: 
+      - api
+      - redis
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - cryonel-network
+
+  # Copy Trading Follower Worker
+  worker-copy-follower:
+    build: 
+      context: ./apps/workers/copy-follower
+      dockerfile: Dockerfile
+    env_file: ./.env
+    depends_on: 
+      - api
+      - redis
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - cryonel-network
+
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    volumes: 
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/db/init:/docker-entrypoint-initdb.d
+    ports: 
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - cryonel-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes: 
+      - redis_data:/data
+    ports: 
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - cryonel-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Nginx Proxy Server
+  nginx:
+    build: 
+      context: ./nginx
+      dockerfile: Dockerfile
+    depends_on: 
+      - web
+      - api
+    ports: 
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ./logs:/var/log/nginx
+    restart: unless-stopped
+    networks:
+      - cryonel-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  cryonel-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

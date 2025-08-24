@@ -1,0 +1,41 @@
+{
+    "name": "cryonel",
+    "version": "1.0.0",
+    "description": "Non-custodial crypto arbitrage and copy trading platform",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "pnpm -w run dev:web & pnpm -w run dev:api",
+        "dev:web": "pnpm --filter web dev",
+        "dev:api": "pnpm --filter api dev",
+        "build": "pnpm -w run build:web & pnpm -w run build:api",
+        "build:web": "pnpm --filter web build",
+        "build:api": "pnpm --filter api build",
+        "test": "pnpm -w run test:web & pnpm -w run test:api",
+        "test:web": "pnpm --filter web test",
+        "test:api": "pnpm --filter api test",
+        "lint": "pnpm -w run lint:web & pnpm -w run lint:api",
+        "lint:web": "pnpm --filter web lint",
+        "lint:api": "pnpm --filter api lint",
+        "typecheck": "pnpm -w run typecheck:web & pnpm -w run typecheck:api",
+        "typecheck:web": "pnpm --filter web typecheck",
+        "typecheck:api": "pnpm --filter api typecheck",
+        "docker:up": "docker compose up -d",
+        "docker:down": "docker compose down",
+        "docker:logs": "docker compose logs -f",
+        "clean": "pnpm -w run clean:web & pnpm -w run clean:api",
+        "clean:web": "pnpm --filter web clean",
+        "clean:api": "pnpm --filter api clean"
+    },
+    "devDependencies": {
+        "@types/node": "^20.10.0",
+        "typescript": "^5.3.0",
+        "prettier": "^3.1.0",
+        "eslint": "^8.55.0"
+    },
+    "engines": {
+        "node": ">=18.0.0",
+        "pnpm": ">=8.0.0"
+    },
+    "packageManager": "pnpm@8.15.0"
+}

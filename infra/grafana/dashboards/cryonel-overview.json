@@ -1,0 +1,71 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "CRYONEL Overview",
+    "tags": [
+      "cryonel",
+      "trading",
+      "monitoring"
+    ],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "API Response Time",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m])",
+            "legendFormat": "{{route}}"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 0
+        }
+      },
+      {
+        "id": 2,
+        "title": "Worker Jobs",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "worker_jobs_total{status=\"completed\"}",
+            "legendFormat": "Completed"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 12,
+          "y": 0
+        }
+      },
+      {
+        "id": 3,
+        "title": "Active Trades",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "trades_total{status=\"pending\"}",
+            "legendFormat": "Pending"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 6,
+          "x": 18,
+          "y": 0
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "refresh": "10s"
+  }
+}

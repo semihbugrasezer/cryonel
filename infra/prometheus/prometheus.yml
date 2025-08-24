@@ -1,0 +1,139 @@
+# infra/prometheus/prometheus.yml
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'cryonel'
+    environment: 'production'
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    metrics_path: /metrics
+    scrape_interval: 15s
+
+  - job_name: 'cryonel-api'
+    static_configs:
+      - targets: ['api:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+
+  - job_name: 'cryonel-web'
+    static_configs:
+      - targets: ['web:3000']
+    metrics_path: /metrics
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    honor_labels: true
+
+  - job_name: 'cryonel-workers'
+    static_configs:
+      - targets: ['worker-arb:8080', 'worker-copy-master:8080', 'worker-copy-follower:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['db:5432']
+    metrics_path: /metrics
+    scrape_interval: 30s
+    scrape_timeout: 15s
+    honor_labels: true
+
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    metrics_path: /metrics
+    scrape_interval: 30s
+    scrape_timeout: 15s
+    honor_labels: true
+
+  # Node Exporter (if running on hosts)
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    metrics_path: /metrics
+    scrape_interval: 30s
+    scrape_timeout: 15s
+    honor_labels: true
+
+  # Nginx
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx:80']
+    metrics_path: /metrics
+    scrape_interval: 30s
+    scrape_timeout: 15s
+    honor_labels: true
+
+  # Blackbox Exporter (for external monitoring)
+  - job_name: 'blackbox-http'
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+        - https://api.cryonel.com/health
+        - https://web.cryonel.com
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Service Discovery (if using Docker Swarm or Kubernetes)
+  - job_name: 'docker-swarm'
+    file_sd_configs:
+      - files:
+        - 'targets/docker-swarm.yml'
+    scrape_interval: 30s
+    scrape_timeout: 15s
+    honor_labels: true
+
+# Recording rules for common queries
+rule_files:
+  - "rules/cryonel-rules.yml"
+  - "rules/alerting-rules.yml"
+
+# Alerting rules
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+      scheme: http
+      timeout: 10s
+      api_version: v1
+
+# Remote write configuration (if using external storage)
+remote_write:
+  - url: "http://remote-storage:9201/write"
+    remote_timeout: 30s
+    queue_config:
+      max_samples_per_send: 1000
+      max_shards: 200
+      capacity: 2500
+      max_shard_delay: 30s
+      batch_send_deadline: 5s
+      min_shards: 1
+      min_backoff: 30ms
+      max_backoff: 100ms
+
+# Remote read configuration
+remote_read:
+  - url: "http://remote-storage:9201/read"
+    remote_timeout: 1m
+    read_recent: true

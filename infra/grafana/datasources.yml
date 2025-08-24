@@ -1,0 +1,31 @@
+# Grafana Datasources Configuration
+apiVersion: 1
+
+datasources:
+  # Prometheus datasource
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    basicAuth: false
+    editable: true
+    jsonData:
+      timeInterval: "15s"
+      queryTimeout: "60s"
+      httpMethod: "GET"
+
+  # Loki datasource for logs
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    basicAuth: false
+    editable: true
+    jsonData:
+      maxLines: 1000
+      derivedFields:
+        - datasourceUid: prometheus-uid
+          matcherRegex: "requestId=(\\w+)"
+          name: "Request ID"
+          url: "/explore?left=%5B%22${__value.time}%22,%22${__value.endTime}%22,%22Prometheus%22,%7B%22expr%22:%22%7Brequest_id%3D%5C%22${__value}%5C%22%7D%22%7D%5D"

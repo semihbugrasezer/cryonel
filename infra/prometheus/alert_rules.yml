@@ -1,0 +1,182 @@
+# CRYONEL Prometheus Alert Rules
+groups:
+  - name: cryonel_api
+    rules:
+      # API Health Alerts
+      - alert: APIDown
+        expr: up{job="cryonel-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CRYONEL API is down"
+          description: "API service has been down for more than 1 minute"
+
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="cryonel-api"}[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency"
+          description: "95th percentile latency is above 2s for {{ $value }}s"
+
+      - alert: HighAPIErrorRate
+        expr: rate(http_requests_total{job="cryonel-api",status=~"5.."}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API error rate"
+          description: "Error rate is {{ $value }} errors per second"
+
+  - name: cryonel_workers
+    rules:
+      # Worker Health Alerts
+      - alert: ArbitrageWorkerDown
+        expr: up{job="cryonel-worker-arb"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Arbitrage worker is down"
+          description: "Arbitrage worker has been down for more than 2 minutes"
+
+      - alert: HighWorkerJobFailureRate
+        expr: rate(worker_jobs_total{status="failed"}[5m]) / rate(worker_jobs_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High worker job failure rate"
+          description: "Worker job failure rate is {{ $value | humanizePercentage }}"
+
+      - alert: SlowWorkerJobProcessing
+        expr: histogram_quantile(0.95, rate(worker_job_duration_seconds_bucket[5m])) > 60
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow worker job processing"
+          description: "95th percentile job duration is {{ $value }}s"
+
+  - name: cryonel_infrastructure
+    rules:
+      # Database Alerts
+      - alert: DatabaseDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "Database has been down for more than 1 minute"
+
+      - alert: HighDatabaseConnections
+        expr: pg_stat_database_numbackends / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High database connection usage"
+          description: "Database connection usage is {{ $value | humanizePercentage }}"
+
+      # Redis Alerts
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has been down for more than 1 minute"
+
+      - alert: HighRedisMemoryUsage
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Redis memory usage"
+          description: "Redis memory usage is {{ $value | humanizePercentage }}"
+
+  - name: cryonel_system
+    rules:
+      # System Resource Alerts
+      - alert: HighCPUUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: HighMemoryUsage
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      - alert: LowDiskSpace
+        expr: (1 - node_filesystem_avail_bytes / node_filesystem_size_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low disk space"
+          description: "Disk usage is {{ $value }}% on {{ $labels.instance }}"
+
+  - name: cryonel_trading
+    rules:
+      # Trading-specific Alerts
+      - alert: LowArbitrageOpportunities
+        expr: rate(arbitrage_profitable_opportunities_total[10m]) < 0.01
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low arbitrage opportunity rate"
+          description: "Profitable arbitrage opportunities are below normal rate"
+
+      - alert: HighTradingLatency
+        expr: histogram_quantile(0.95, rate(arbitrage_execution_latency_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High trading execution latency"
+          description: "95th percentile trading latency is {{ $value }}s"
+
+      - alert: VenueConnectionLoss
+        expr: arbitrage_venue_connections{status="connected"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Lost connection to trading venue"
+          description: "Connection to {{ $labels.venue }} has been lost"
+
+  - name: cryonel_endpoints
+    rules:
+      # Endpoint Monitoring
+      - alert: WebsiteDown
+        expr: probe_success{job="blackbox"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Website endpoint is down"
+          description: "{{ $labels.instance }} has been down for more than 2 minutes"
+
+      - alert: SlowWebsiteResponse
+        expr: probe_duration_seconds{job="blackbox"} > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Slow website response"
+          description: "{{ $labels.instance }} is responding slowly ({{ $value }}s)"
